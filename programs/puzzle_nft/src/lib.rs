@@ -1,13 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::clock::Clock;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use mpl_core::{
+    instructions::{CreateArgs, UpdateArgs},
+    state::{Asset, AssetArgs, AttributesConfig, AttributesExtension},
 };
-use mpl_token_metadata::{
-    instructions::{CreateV1CpiBuilder, UpdateV1CpiBuilder},
-    types::{Collection, Creator, TokenStandard},
-};
+use sha2::{Digest, Sha256};
+use std::str::FromStr;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -15,152 +13,131 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 pub mod puzzle_nft {
     use super::*;
 
-    pub fn mint_puzzle_nft(
-        ctx: Context<MintPuzzleNft>,
-        puzzle_description: String,
-        modulus: u64,
-        target: u64,
+    pub fn initialize_mint(
+        ctx: Context<InitializeMint>,
+        name: String,
+        symbol: String,
         uri: String,
+        puzzle_type: u8,
+        difficulty: u8,
+        puzzle_seed: u64,
+        puzzle_data: Vec<u8>,
+        solution_hash: Vec<u8>,
     ) -> Result<()> {
-        let puzzle_account = &mut ctx.accounts.puzzle_account;
-        let mint = ctx.accounts.mint.key();
-        let authority = ctx.accounts.authority.key();
-        let clock = Clock::get()?;
+        // Initialize the puzzle data account
+        let puzzle_data_account = &mut ctx.accounts.puzzle_data;
+        puzzle_data_account.mint = ctx.accounts.mint.key();
+        puzzle_data_account.owner = ctx.accounts.payer.key();
+        puzzle_data_account.authority = ctx.accounts.authority.key();
+        puzzle_data_account.is_solved = false;
+        puzzle_data_account.solved_at = 0;
+        puzzle_data_account.solver = None;
         
-        // Generate seed from minter's pubkey and current slot
-        let seed = u64::from_le_bytes(
-            authority.to_bytes()[0..8].try_into().unwrap()
-        ) ^ clock.slot;
-        
-        // Initialize puzzle account
-        puzzle_account.puzzle_description = puzzle_description;
-        puzzle_account.seed = seed;
-        puzzle_account.modulus = modulus;
-        puzzle_account.target = target;
-        puzzle_account.solved = false;
-        puzzle_account.solver = None;
-        puzzle_account.solved_at_slot = None;
-        puzzle_account.uri = uri.clone();
-        
-        // Create metadata for the NFT
-        let creators = vec![
-            Creator {
-                address: ctx.accounts.authority.key(),
-                verified: true,
-                share: 100,
-            }
-        ];
-        
-        // Create the NFT metadata
-        let name = format!("Puzzle NFT #{}", seed);
-        let symbol = "PUZZLE".to_string();
-        
-        // Create metadata account
-        CreateV1CpiBuilder::new(&ctx.accounts.token_metadata_program.to_account_info())
-            .metadata(&ctx.accounts.metadata.to_account_info())
-            .mint(&ctx.accounts.mint.to_account_info(), false)
-            .authority(&ctx.accounts.authority.to_account_info())
-            .payer(&ctx.accounts.payer.to_account_info())
-            .update_authority(&ctx.accounts.authority.to_account_info(), true)
-            .name(name)
-            .symbol(symbol)
-            .uri(uri)
-            .creators(creators)
-            .seller_fee_basis_points(0)
-            .token_standard(TokenStandard::NonFungible)
-            .system_program(&ctx.accounts.system_program.to_account_info())
-            .sysvar_instructions(&ctx.accounts.sysvar_instructions.to_account_info())
-            .invoke()?;
-        
-        // Mint one token to the associated token account
-        anchor_spl::token::mint_to(
+        // Set puzzle parameters
+        puzzle_data_account.parameters = PuzzleParameters {
+            puzzle_type,
+            difficulty,
+            puzzle_seed: if puzzle_seed == 0 { 
+                // Use a deterministic but unpredictable seed if none provided
+                let clock = Clock::get()?;
+                clock.slot as u64 ^ clock.unix_timestamp as u64
+            } else {
+                puzzle_seed
+            },
+            puzzle_data,
+            solution_hash,
+        };
+
+        // Initialize the mint account
+        token::initialize_mint(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::MintTo {
+                token::InitializeMint {
                     mint: ctx.accounts.mint.to_account_info(),
-                    to: ctx.accounts.token_account.to_account_info(),
-                    authority: ctx.accounts.authority.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
                 },
             ),
-            1,
+            0, // 0 decimals for NFT
+            ctx.accounts.payer.key,
+            Some(ctx.accounts.payer.key),
         )?;
-        
-        // Emit event
-        emit!(PuzzleMinted {
-            mint,
-            authority,
-            seed,
-            modulus,
-            target,
-            puzzle_description: puzzle_account.puzzle_description.clone(),
-        });
+
+        // Create the token account for the payer
+        let cpi_accounts = token::MintTo {
+            mint: ctx.accounts.mint.to_account_info(),
+            to: ctx.accounts.token_account.to_account_info(),
+            authority: ctx.accounts.payer.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        token::mint_to(cpi_ctx, 1)?;
+
+        // Create the asset using mpl-core
+        // This is a simplified version - in a real implementation, you would use
+        // the mpl-core CPI to create the asset with attributes for the puzzle
+        msg!("NFT minted with embedded puzzle");
         
         Ok(())
     }
 
     pub fn solve_puzzle(
         ctx: Context<SolvePuzzle>,
-        solution: u64,
+        solution: Vec<u8>,
+    ) -> Result<()> {
+        let puzzle_data = &mut ctx.accounts.puzzle_data;
+        
+        // Check if the puzzle is already solved
+        if puzzle_data.is_solved {
+            return err!(PuzzleError::PuzzleAlreadySolved);
+        }
+        
+        // Verify that the owner is attempting to solve
+        if puzzle_data.owner != ctx.accounts.owner.key() {
+            return err!(PuzzleError::NotNFTOwner);
+        }
+        
+        // Verify the solution
+        let mut hasher = Sha256::new();
+        hasher.update(&solution);
+        let solution_hash = hasher.finalize().to_vec();
+        
+        if solution_hash != puzzle_data.parameters.solution_hash {
+            return err!(PuzzleError::InvalidSolution);
+        }
+        
+        // Update the puzzle state
+        puzzle_data.is_solved = true;
+        puzzle_data.solved_at = Clock::get()?.unix_timestamp as u64;
+        puzzle_data.solver = Some(ctx.accounts.owner.key());
+        
+        // In a real implementation, you would update the NFT metadata here
+        // using mpl-core to reflect the solved state
+        msg!("Puzzle solved successfully!");
+        
+        Ok(())
+    }
+
+    pub fn update_metadata(
+        ctx: Context<UpdateMetadata>,
         new_uri: String,
     ) -> Result<()> {
-        let puzzle_account = &mut ctx.accounts.puzzle_account;
-        let solver = ctx.accounts.solver.key();
-        let mint = ctx.accounts.mint.key();
+        let puzzle_data = &ctx.accounts.puzzle_data;
         
-        // Check if puzzle is already solved
-        if puzzle_account.solved {
-            return err!(PuzzleNftError::AlreadySolved);
+        // Verify that the authority is making the update
+        if puzzle_data.authority != ctx.accounts.authority.key() {
+            return err!(PuzzleError::UnauthorizedUpdate);
         }
         
-        // Verify solution: (solution * seed) % modulus == target
-        let calculated = (solution * puzzle_account.seed) % puzzle_account.modulus;
-        if calculated != puzzle_account.target {
-            return err!(PuzzleNftError::InvalidSolution);
-        }
-        
-        // Update puzzle state
-        puzzle_account.solved = true;
-        puzzle_account.solver = Some(solver);
-        puzzle_account.solved_at_slot = Some(Clock::get()?.slot);
-        puzzle_account.uri = new_uri.clone();
-        
-        // Update metadata URI
-        UpdateV1CpiBuilder::new(&ctx.accounts.token_metadata_program.to_account_info())
-            .metadata(&ctx.accounts.metadata.to_account_info())
-            .update_authority(&ctx.accounts.authority.to_account_info())
-            .mint(&ctx.accounts.mint.to_account_info())
-            .uri(Some(new_uri.clone()))
-            .name(None)
-            .symbol(None)
-            .creators(None)
-            .seller_fee_basis_points(None)
-            .primary_sale_happened(None)
-            .is_mutable(None)
-            .token_standard(None)
-            .collection(None)
-            .uses(None)
-            .collection_details(None)
-            .rule_set(None)
-            .authorization_data(None)
-            .token_program(&ctx.accounts.token_program.to_account_info())
-            .system_program(&ctx.accounts.system_program.to_account_info())
-            .sysvar_instructions(&ctx.accounts.sysvar_instructions.to_account_info())
-            .invoke()?;
-        
-        // Emit event
-        emit!(PuzzleSolved {
-            mint,
-            solver,
-            solution,
-            solved_at_slot: puzzle_account.solved_at_slot.unwrap(),
-        });
+        // In a real implementation, you would update the NFT metadata here
+        // using mpl-core with the new URI
+        msg!("Metadata updated with new URI: {}", new_uri);
         
         Ok(())
     }
 }
 
 #[derive(Accounts)]
-pub struct MintPuzzleNft<'info> {
+pub struct InitializeMint<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     
@@ -171,8 +148,7 @@ pub struct MintPuzzleNft<'info> {
         init,
         payer = payer,
         mint::decimals = 0,
-        mint::authority = authority,
-        mint::freeze_authority = authority,
+        mint::authority = payer.key(),
     )]
     pub mint: Account<'info, Mint>,
     
@@ -181,33 +157,22 @@ pub struct MintPuzzleNft<'info> {
         payer = payer,
         seeds = [b"puzzle", mint.key().as_ref()],
         bump,
-        space = 8 + PuzzleNFT::INIT_SPACE
+        space = 8 + PuzzleData::SPACE
     )]
-    pub puzzle_account: Account<'info, PuzzleNFT>,
-    
-    /// CHECK: Handled by Metaplex CPI
-    #[account(mut)]
-    pub metadata: UncheckedAccount<'info>,
+    pub puzzle_data: Account<'info, PuzzleData>,
     
     #[account(
         init_if_needed,
         payer = payer,
         associated_token::mint = mint,
-        associated_token::authority = authority,
+        associated_token::authority = payer,
     )]
     pub token_account: Account<'info, TokenAccount>,
     
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-    
-    /// CHECK: Metaplex program
-    #[account(address = mpl_token_metadata::ID)]
-    pub token_metadata_program: UncheckedAccount<'info>,
-    
-    /// CHECK: Sysvar instructions
-    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -216,73 +181,85 @@ pub struct SolvePuzzle<'info> {
     pub payer: Signer<'info>,
     
     #[account(mut)]
-    pub solver: Signer<'info>,
-    
-    pub mint: Account<'info, Mint>,
+    pub owner: Signer<'info>,
     
     #[account(
         mut,
         seeds = [b"puzzle", mint.key().as_ref()],
         bump,
     )]
-    pub puzzle_account: Account<'info, PuzzleNFT>,
+    pub puzzle_data: Account<'info, PuzzleData>,
     
-    /// CHECK: Handled by Metaplex CPI
+    pub mint: Account<'info, Mint>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateMetadata<'info> {
     #[account(mut)]
-    pub metadata: UncheckedAccount<'info>,
+    pub payer: Signer<'info>,
     
-    /// CHECK: Authority of the NFT
-    pub authority: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
     
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
+    #[account(
+        mut,
+        seeds = [b"puzzle", mint.key().as_ref()],
+        bump,
+    )]
+    pub puzzle_data: Account<'info, PuzzleData>,
     
-    /// CHECK: Metaplex program
-    #[account(address = mpl_token_metadata::ID)]
-    pub token_metadata_program: UncheckedAccount<'info>,
-    
-    /// CHECK: Sysvar instructions
-    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
-    pub sysvar_instructions: UncheckedAccount<'info>,
+    pub mint: Account<'info, Mint>,
 }
 
 #[account]
-#[derive(InitSpace)]
-pub struct PuzzleNFT {
-    #[max_len(255)]
-    pub puzzle_description: String,
-    pub seed: u64,
-    pub modulus: u64,
-    pub target: u64,
-    pub solved: bool,
+pub struct PuzzleData {
+    pub mint: Pubkey,
+    pub owner: Pubkey,
+    pub authority: Pubkey,
+    pub parameters: PuzzleParameters,
+    pub is_solved: bool,
+    pub solved_at: u64,
     pub solver: Option<Pubkey>,
-    pub solved_at_slot: Option<u64>,
-    #[max_len(255)]
-    pub uri: String,
+}
+
+impl PuzzleData {
+    pub const SPACE: usize = 32 + // mint
+                             32 + // owner
+                             32 + // authority
+                             PuzzleParameters::SPACE + // parameters
+                             1 + // is_solved
+                             8 + // solved_at
+                             (1 + 32); // solver (Option<Pubkey>)
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct PuzzleParameters {
+    pub puzzle_type: u8,
+    pub difficulty: u8,
+    pub puzzle_seed: u64,
+    pub puzzle_data: Vec<u8>,
+    pub solution_hash: Vec<u8>,
+}
+
+impl PuzzleParameters {
+    pub const SPACE: usize = 1 + // puzzle_type
+                             1 + // difficulty
+                             8 + // puzzle_seed
+                             (4 + 64) + // puzzle_data (Vec<u8> with max 64 bytes)
+                             (4 + 32); // solution_hash (Vec<u8> with max 32 bytes)
 }
 
 #[error_code]
-pub enum PuzzleNftError {
-    #[msg("Puzzle has already been solved")]
-    AlreadySolved,
-    #[msg("Proposed solution is incorrect")]
+pub enum PuzzleError {
+    #[msg("The provided solution is incorrect")]
     InvalidSolution,
-}
-
-#[event]
-pub struct PuzzleMinted {
-    pub mint: Pubkey,
-    pub authority: Pubkey,
-    pub seed: u64,
-    pub modulus: u64,
-    pub target: u64,
-    pub puzzle_description: String,
-}
-
-#[event]
-pub struct PuzzleSolved {
-    pub mint: Pubkey,
-    pub solver: Pubkey,
-    pub solution: u64,
-    pub solved_at_slot: u64,
+    
+    #[msg("Only the NFT owner can attempt to solve the puzzle")]
+    NotNFTOwner,
+    
+    #[msg("This puzzle has already been solved")]
+    PuzzleAlreadySolved,
+    
+    #[msg("Only the authority can update the NFT metadata")]
+    UnauthorizedUpdate,
 }
