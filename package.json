@@ -1,0 +1,36 @@
+{
+  "name": "puzzle-nft",
+  "version": "0.1.0",
+  "description": "On-Chain Puzzle NFTs with Metadata Evolution",
+  "main": "index.js",
+  "scripts": {
+    "test": "anchor test",
+    "build": "anchor build",
+    "lint": "eslint tests/**/*.ts"
+  },
+  "keywords": [
+    "solana",
+    "anchor",
+    "nft",
+    "puzzle",
+    "metaplex"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.28.0",
+    "@metaplex-foundation/mpl-token-metadata": "^3.0.1",
+    "@solana/spl-token": "^0.3.8",
+    "@solana/web3.js": "^1.78.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.0",
+    "@types/chai": "^4.3.0",
+    "@types/mocha": "^9.0.0",
+    "chai": "^4.3.4",
+    "eslint": "^8.45.0",
+    "mocha": "^9.0.3",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^4.3.5"
+  }
+}
