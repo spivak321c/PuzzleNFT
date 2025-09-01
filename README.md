@@ -69,13 +69,12 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
      ```bash
     ./start-validator.sh
      ```
-   - Execute TypeScript tests:
-   - Open a new terminal :
+   Execute TypeScript tests open a new terminal :
 
     Run the test suite to verify functionality:
-```bash
-anchor test --skip-local-validator
-```
+    ```bash
+   anchor test --skip-local-validator
+    ```
    - Tests verify collection creation, NFT minting, and puzzle solving, including attribute validation.
 
 7. **Deploy to Devnet**:
