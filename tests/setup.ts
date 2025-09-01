@@ -4,6 +4,8 @@ import { PuzzleNft } from "../target/types/puzzle_nft";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplCore } from "@metaplex-foundation/mpl-core";
 import { publicKey as umiPublicKey, createNoopSigner, signerIdentity } from "@metaplex-foundation/umi";
+import { web3JsRpc } from "@metaplex-foundation/umi-rpc-web3js";
+
 
 export interface TestContext {
   provider: anchor.AnchorProvider;
@@ -27,7 +29,9 @@ export function setupTestContext(): TestContext {
   anchor.setProvider(provider);
   
   const program = anchor.workspace.PuzzleNft as Program<PuzzleNft>;
-  const umi = createUmi(provider.connection.rpcEndpoint).use(mplCore());
+  //const umi = createUmi(provider.connection.rpcEndpoint).use(mplCore());
+    const umi = createUmi(provider.connection.rpcEndpoint).use(web3JsRpc(provider.connection)).use(mplCore());
+
   
   const walletSigner = createNoopSigner(umiPublicKey(provider.wallet.publicKey.toString()));
   umi.use(signerIdentity(walletSigner));

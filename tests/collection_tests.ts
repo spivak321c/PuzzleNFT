@@ -28,9 +28,12 @@ describe("Collection Tests", () => {
       console.log("Collection created: ", accounts.collectionKp.publicKey.toString());
       console.log("Transaction signature: ", tx);
 
+      // Wait for transaction finalization
+      await provider.connection.confirmTransaction(tx, "confirmed");
+
       try {
         // Fetch raw account data to debug
-        const accountInfo = await provider.connection.getAccountInfo(accounts.collectionKp.publicKey);
+        const accountInfo = await provider.connection.getAccountInfo(accounts.collectionKp.publicKey, "confirmed");
         if (accountInfo) {
           console.log("Account exists with data length:", accountInfo.data.length);
           console.log("Account owner:", accountInfo.owner.toString());
@@ -40,9 +43,11 @@ describe("Collection Tests", () => {
           console.log("Account does not exist");
         }
 
-        const collection = await fetchCollectionV1(umi, umiPublicKey(accounts.collectionKp.publicKey.toString()));
-        console.log("Fetched collection:", JSON.stringify(collection, null, 2));
-        expect(collection.updateAuthority.address.toString()).to.equal(accounts.collectionAuthority.toString());
+        const collection = await fetchCollectionV1(umi, umiPublicKey(accounts.collectionKp.publicKey.toString()), { commitment: 'confirmed' });
+        console.log("Fetched collection:", JSON.stringify(collection, (key, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        , 2));
+        expect(collection.updateAuthority.toString()).to.equal(accounts.collectionAuthority.toString());
       } catch (error) {
         console.error("Failed to fetch collection:", error);
         throw error;
@@ -93,7 +98,7 @@ describe("Collection Tests", () => {
 
   describe("Collection Authority", () => {
     beforeEach(async () => {
-      await program.methods
+      const tx = await program.methods
         .createCollection()
         .accounts({
           collection: accounts.collectionKp.publicKey,
@@ -104,11 +109,12 @@ describe("Collection Tests", () => {
         })
         .signers([accounts.collectionKp])
         .rpc();
+      await provider.connection.confirmTransaction(tx, "confirmed");
     });
 
     it("Should have correct collection authority PDA", async () => {
-      const collection = await fetchCollectionV1(umi, umiPublicKey(accounts.collectionKp.publicKey.toString()));
-      expect(collection.updateAuthority.address.toString()).to.equal(accounts.collectionAuthority.toString());
+      const collection = await fetchCollectionV1(umi, umiPublicKey(accounts.collectionKp.publicKey.toString()), { commitment: 'confirmed' });
+      expect(collection.updateAuthority.toString()).to.equal(accounts.collectionAuthority.toString());
     });
 
     it("Should derive authority PDA correctly", async () => {

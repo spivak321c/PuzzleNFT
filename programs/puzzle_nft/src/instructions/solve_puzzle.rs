@@ -19,6 +19,7 @@ pub struct SolvePuzzle<'info> {
     pub asset: UncheckedAccount<'info>,
     /// The collection the asset belongs to (optional, validated by Metaplex Core).
     /// CHECK: This account is validated by Metaplex Core when present
+    #[account(mut)]
     pub collection: Option<UncheckedAccount<'info>>,
     /// The collection authority PDA for signing updates.
     /// CHECK: This account is validated as a PDA with the correct seeds
@@ -47,9 +48,10 @@ pub struct SolvePuzzle<'info> {
 impl<'info> SolvePuzzle<'info> {
     pub fn solve_puzzle(&mut self, bumps: SolvePuzzleBumps, solution: u64, new_uri: Option<String>) -> Result<()> {
         // Deserialize base asset using BaseAssetV1
-        let asset_data = self.asset.data.borrow();
-        let asset: BaseAssetV1 = BaseAssetV1::from_bytes(&asset_data)
-            .map_err(|_| crate::PuzzleError::InvalidAssetData)?;
+        let asset: BaseAssetV1 = {
+            let asset_data = self.asset.data.borrow();
+            BaseAssetV1::from_bytes(&asset_data).map_err(|_| crate::PuzzleError::InvalidAssetData)?
+        };
 
         // Verify ownership - BaseAssetV1 has the owner field directly
         require_eq!(
@@ -150,7 +152,7 @@ impl<'info> SolvePuzzle<'info> {
             }
         }
 
-        // Handle seeds for collection authority - fix the borrowing issue
+        // Handle seeds for collection authority
         let seeds = [b"authority".as_ref(), &[bumps.authority]];
         let signer_seeds = &[&seeds[..]];
 
@@ -163,13 +165,13 @@ impl<'info> SolvePuzzle<'info> {
                     .as_ref()
             )
             .payer(&self.owner.to_account_info())
-            .authority(Some(&self.owner.to_account_info()))
+            .authority(Some(&self.authority.to_account_info()))
             .system_program(&self.system_program.to_account_info())
             .plugin(Plugin::Attributes(Attributes {
                 attribute_list: updated_attributes,
             }))
             .add_remaining_account(&self.sysvar_instructions.to_account_info(), false, false)
-            .invoke()?;
+            .invoke_signed(signer_seeds)?;
 
         // Update URI if provided
         if let Some(uri) = new_uri {
