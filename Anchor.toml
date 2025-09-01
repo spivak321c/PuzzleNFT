@@ -3,7 +3,7 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-puzzle_nft = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+puzzle_nft = "U8kQ8829D2TvdMEK4CxSoaDYbnRYXYgCEHAYVycHLaT"
 
 [registry]
 url = "https://api.apr.dev"

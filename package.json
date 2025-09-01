@@ -1,32 +1,34 @@
 {
   "name": "puzzle-nft",
   "version": "0.1.0",
-  "description": "A Solana program for minting NFTs with embedded puzzles that can be solved on-chain",
+  "description": "A Solana program for minting NFTs with embedded puzzles using MPL Core",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "anchor test",
     "build": "anchor build",
-    "deploy": "anchor deploy"
+    "deploy": "anchor deploy",
+    "localnet": "anchor localnet",
+    "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
-  "keywords": [
-    "solana",
-    "anchor",
-    "nft",
-    "puzzle"
-  ],
+  "keywords": ["solana", "anchor", "nft", "puzzle", "mpl-core"],
   "dependencies": {
-    "@coral-xyz/anchor": "^0.28.0",
-    "@metaplex-foundation/mpl-core": "^0.0.5",
-    "@solana/spl-token": "^0.3.8",
-    "@solana/web3.js": "^1.78.0"
+    "@coral-xyz/anchor": "^0.31.1",
+    "@metaplex-foundation/mpl-core": "^1.4.0",
+    "@metaplex-foundation/umi": "^1.4.0",
+    "@metaplex-foundation/umi-bundle-defaults": "^1.4.0",
+    "@noble/hashes": "^2.0.0",
+    "@solana/web3.js": "^1.98.4"
   },
   "devDependencies": {
+    "chai": "^4.3.4",
+    "mocha": "^10.0.0",
+    "ts-mocha": "^10.0.0",
     "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.3.0",
     "@types/mocha": "^9.0.0",
-    "chai": "^4.3.4",
-    "mocha": "^9.0.3",
-    "ts-mocha": "^10.0.0",
-    "typescript": "^4.3.5"
+    "typescript": "^5.6.2",
+    "prettier": "^2.6.2"
   }
 }

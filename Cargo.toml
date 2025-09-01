@@ -1,8 +1,10 @@
 [workspace]
 members = [
-    "programs/puzzle_nft",
+    "programs/*"
 ]
+
 resolver = "2"
+
 
 [profile.release]
 overflow-checks = true

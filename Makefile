@@ -20,6 +20,7 @@ clean:
 	rm -rf .anchor
 	rm -rf target
 	rm -rf node_modules
+	rm -rf Cargo.lock
 
 install:
 	yarn install
