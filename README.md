@@ -65,13 +65,11 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
    - The output will be in `target/deploy/puzzle_nft.so`.
 
 6. **Run Unit Tests**:
-   - Start a local Solana validator (optional for Devnet):
+   - Run the Solana validator script (optional for Devnet):
      ```bash
-    ./start-validator.sh
+     ./start-validator.sh
      ```
-   Execute TypeScript tests open a new terminal :
-
-    Run the test suite to verify functionality:
+   Execute TypeScript tests open a new terminal and Run the test suite to verify functionality:
     ```bash
    anchor test --skip-local-validator
     ```
