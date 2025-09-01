@@ -26,8 +26,8 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
 ### Installation
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-username/puzzle-nft1.git
-   cd puzzle-nft1
+   git clone https://github.com/your-username/PuzzleNFT.git
+   cd PuzzleNFT
    ```
 
 2. **Run Setup Script**:
