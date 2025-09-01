@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project is a Solana smart contract developed for the Código DevQuest, a collaboration between Código and Superteam Nigeria. The program implements an on-chain Puzzle NFT system, allowing users to create a collection, mint NFTs with embedded puzzle attributes, and solve puzzles to update NFT metadata. Built using the Anchor framework (version 0.31.1) and Metaplex's `mpl-core` library, the program demonstrates NFT minting, collection creation, and asset plugin management with a creative puzzle-solving mechanic. Comprehensive TypeScript unit tests ensure functionality and robustness, making the codebase reusable for Solana-based NFT projects.
+`Puzzle NFT` is a Solana program built with [Anchor](https://www.anchor-lang.com/) and [Metaplex Core](https://github.com/metaplex-foundation/mpl-core) to create and manage Non-Fungible Tokens (NFTs) with embedded puzzles. Users can create a collection, mint NFTs with puzzles (math_factor, hash_riddle, or pattern), and solve them to update attributes and earn rarity scores. The program uses Anchor for Rust-based smart contracts and TypeScript for client-side testing, leveraging Metaplex Core for NFT functionality. Comprehensive TypeScript unit tests ensure functionality and robustness, making the codebase reusable for Solana-based NFT projects.
 
 ### Features
 - **Collection Creation**: Initializes a Metaplex collection for grouping Puzzle NFTs.
