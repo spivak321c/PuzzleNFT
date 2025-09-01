@@ -20,20 +20,20 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
 ## Setup Instructions
 
 ### Prerequisites
-- A Solana wallet with a public address for deployment and testing (Devnet recommended).
+- A Solana wallet with a public address for deployment and testing ( Localnet recommended).
 - Internet connection for downloading dependencies.
 
 ### Installation
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-username/puzzle-nft.git
-   cd puzzle-nft
+   git clone https://github.com/your-username/puzzle-nft1.git
+   cd puzzle-nft1
    ```
 
 2. **Run Setup Script**:
    - For **Linux** (including WSL on Windows) or **macOS**:
      ```bash
-     chmod +x setup.sh
+     chmod +x setup.sh start-validator.sh
      ./setup.sh
      ```
    - For **Windows**:
@@ -44,7 +44,7 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
 3. **Set Up Solana Environment**:
    - Configure Solana CLI for Devnet:
      ```bash
-     solana config set --url https://api.devnet.solana.com
+     solana config set --url localhost
      ```
    - Generate or use an existing keypair:
      ```bash
@@ -67,12 +67,15 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
 6. **Run Unit Tests**:
    - Start a local Solana validator (optional for Devnet):
      ```bash
-     solana-test-validator
+    ./start-validator.sh
      ```
    - Execute TypeScript tests:
-     ```bash
-     anchor test
-     ```
+   - Open a new terminal :
+
+    Run the test suite to verify functionality:
+```bash
+anchor test --skip-local-validator
+```
    - Tests verify collection creation, NFT minting, and puzzle solving, including attribute validation.
 
 7. **Deploy to Devnet**:
@@ -89,16 +92,9 @@ The program is designed to be secure, extensible, and reusable, serving as a tem
   - `src/lib.rs`: Main program entry point defining the instruction handlers.
   - `src/instructions/`: Instruction logic for creating collections, minting NFTs, and solving puzzles.
   - `Xargo.toml`: Configuration for cross-compilation to Solana's BPF target.
-- `tests/puzzle_nft.ts`: TypeScript unit tests for all program functionality.
+- `tests/`: TypeScript unit tests for all program functionality.
 - `tsconfig.json` & `package.json`: Configuration for TypeScript and Node.js dependencies.
 
-## Code Generation Prompt
-The following CIDL prompt was used on the Código platform to generate the smart contract and tests:
-
-**Prompt**:
-```
-Create a Solana smart contract using Anchor 0.31.1 and Metaplex mpl-core 0.10.1 for a Puzzle NFT system. The program should support creating a Metaplex collection, minting NFTs with puzzle attributes (type, difficulty, solution hash), and solving puzzles to update attributes and assign rarity. Include comprehensive TypeScript unit tests to verify collection creation, NFT minting, puzzle solving, and attribute validation, covering edge cases.
-```
 
 ## Edge Case Testing
 The TypeScript unit tests in `tests/puzzle_nft.ts` cover the following edge cases:
@@ -126,14 +122,6 @@ To meet the DevQuest’s imaginativity criterion, the following features were ad
 
 These features make the program engaging and adaptable for gamified NFT applications.
 
-## Solana Wallet Address
-**Wallet Address**: [Your Solana wallet address here]
-
-## USDC Wallet Address on Solana
-**Wallet Address**: [Your USDC wallet address here]
-
-## Feedback on Código Platform
-Código’s AI-powered code generation streamlined the creation of the Anchor-based smart contract and TypeScript tests. The platform efficiently generated boilerplate code and Metaplex integrations, reducing development time. Challenges with Debugging complex logic (e.g., attribute handling) were resolved by leveraging Código’s iterative refinement and ensuring alignment with the program’s goals and test patterns.
 
 ## Usage
 A frontend client is not included. To interact with the deployed program:
